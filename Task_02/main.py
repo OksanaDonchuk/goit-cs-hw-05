@@ -69,13 +69,9 @@ def visual_result(result):
 if __name__ == '__main__':
     
     url = "https://gutenberg.net.au/ebooks01/0100021.txt"
-   
-    text = get_text(url)
-    if text:
-        result = map_reduce(text)
+    
+    search_words = ['brother', 'Brother', 'Big', 'big', 'hate', "Hate", 'peace']
+    result = asyncio.run(map_reduce(url, search_words))
 
-        print("10 найпопулярніших слів:", dict(Counter(result).most_common(10)))
-
-        visual_result(result)
-    else:
-        print("Error: Failed to retrieve input text.")
+    print("Результат підрахунку слів:", result)
+    visual_result(result)
