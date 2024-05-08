@@ -3,7 +3,7 @@ import asyncio
 from collections import defaultdict, Counter
 
 import httpx
-from matplotlib import pyplot as plt # type: ignore
+from matplotlib import pyplot as plt
 
 
 async def get_text(url):
