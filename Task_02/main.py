@@ -1,25 +1,25 @@
 import string
-import asyncio
-from collections import defaultdict, Counter
+import requests
 
-import httpx
+from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict, Counter
 from matplotlib import pyplot as plt
 
 
-async def get_text(url):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        if response.status_code == 200:
-            return response.text
-        else:
-            return None
+def get_text(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise HTTP errors if any exceptions
+        return response.text
+    except requests.RequestException as e:
+        return None
 
 
 def remove_punctuation(text):
     return text.translate(str.maketrans("", "", string.punctuation))
 
 
-async def map_function(word) -> tuple:
+def map_function(word):
     return word, 1
 
 
@@ -30,48 +30,49 @@ def shuffle_function(mapped_values):
     return shuffled.items()
 
 
-async def reduce_function(key_values):
+def reduce_function(key_values):
     key, values = key_values
     return key, sum(values)
 
 
-async def map_reduce(text, search_words=None):
-    text = await get_text(url)
-    if text:
-        text = remove_punctuation(text)
-        words = text.split()
-        
-        if search_words:
-            words = [word for word in words if word in search_words]  # filter
-        
-        mapped_values = await asyncio.gather(*[map_function(word) for word in words])
-        
-        shuffled_values = shuffle_function(mapped_values)
-        
-        reduced_values = await asyncio.gather(*[reduce_function(key_values) for key_values in shuffled_values])
+# Perform MapReduce
+def map_reduce(text):
+    # Remove punctuation and convert to lowercase
+    text = remove_punctuation(text).lower()
+    words = text.split()
 
-        return dict(reduced_values)
-    else:
-        return None
+    # Parallel Mapping
+    with ThreadPoolExecutor() as executor:
+        mapped_values = list(executor.map(map_function, words))
+
+    # Step 2: Shuffle
+    shuffled_values = shuffle_function(mapped_values)
+
+    # Step 3: parallel reduce
+    with ThreadPoolExecutor() as executor:
+        reduced_values = list(executor.map(reduce_function, shuffled_values))
+
+    return dict(reduced_values)
 
 
-def visual_result(result):
-    top_10 = Counter(result).most_common(10)
-    labels, values = zip(*top_10)
-    plt.figure(figsize=(10, 5))
-    plt.barh(labels, values, color='g')
-    plt.xlabel('Кількість')
-    plt.ylabel('Слово')
-    plt.title('10 найпопулярніших слів')
+def visualize_top_words(result, top_n=10):
+    top_words = Counter(result).most_common(top_n)
+    labels, values = zip(*top_words)
+    plt.figure(figsize=(10, 6))
+    plt.barh(labels, values)
+    plt.xlabel("Frequency")
+    plt.ylabel("Words")
+    plt.title(f"Top {top_n} Most Frequent Words")
+    plt.gca().invert_yaxis()
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     
     url = "https://gutenberg.net.au/ebooks01/0100021.txt"
-   
-    search_words = None
-    result = asyncio.run(map_reduce(url, search_words))
-
-    print("Результат підрахунку слів:", result)
-    visual_result(result)
+    text = get_text(url)
+    if text:
+        result = map_reduce(text)
+        visualize_top_words(result, 10)
+    else:
+        print("Error: Failed to retrieve input text.")
