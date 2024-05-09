@@ -1,27 +1,23 @@
 import string
-import asyncio
 from collections import defaultdict, Counter
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from matplotlib import pyplot as plt
 
-
-async def get_text(url):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
+def get_text(url):
+    with httpx.Client() as client:
+        response = client.get(url)
         if response.status_code == 200:
             return response.text
         else:
             return None
 
-
 def remove_punctuation(text):
     return text.translate(str.maketrans("", "", string.punctuation))
 
-
-async def map_function(word) -> tuple:
+def map_function(word) -> tuple:
     return word, 1
-
 
 def shuffle_function(mapped_values):
     shuffled = defaultdict(list)
@@ -29,14 +25,12 @@ def shuffle_function(mapped_values):
         shuffled[key].append(value)
     return shuffled.items()
 
-
-async def reduce_function(key_values):
+def reduce_function(key_values):
     key, values = key_values
     return key, sum(values)
 
-
-async def map_reduce(text, search_words=None):
-    text = await get_text(url)
+def map_reduce(text, search_words=None):
+    text = get_text(url)
     if text:
         text = remove_punctuation(text)
         words = text.split()
@@ -44,16 +38,17 @@ async def map_reduce(text, search_words=None):
         if search_words:
             words = [word for word in words if word in search_words]  # filter
         
-        mapped_values = await asyncio.gather(*[map_function(word) for word in words])
+        with ThreadPoolExecutor() as executor:
+            mapped_values = executor.map(map_function, words)
         
         shuffled_values = shuffle_function(mapped_values)
         
-        reduced_values = await asyncio.gather(*[reduce_function(key_values) for key_values in shuffled_values])
+        with ThreadPoolExecutor() as executor:
+            reduced_values = executor.map(reduce_function, shuffled_values)
 
         return dict(reduced_values)
     else:
         return None
-
 
 def visual_result(result):
     top_10 = Counter(result).most_common(10)
@@ -65,13 +60,10 @@ def visual_result(result):
     plt.title('10 найпопулярніших слів')
     plt.show()
 
-
 if __name__ == '__main__':
-    
     url = "https://gutenberg.net.au/ebooks01/0100021.txt"
-    
-    search_words = ['brother', 'Brother', 'Big', 'big', 'hate', "Hate", 'peace']
-    result = asyncio.run(map_reduce(url, search_words))
+    search_words = [] # 'brother', 'worth', 'asleep', 'big', 'surrounded', 'form', 'peace', 'murmured', 'advance', 'or'
+    result = map_reduce(url, search_words)
 
     print("Результат підрахунку слів:", result)
     visual_result(result)
